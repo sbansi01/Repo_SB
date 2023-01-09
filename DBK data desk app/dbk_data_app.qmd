@@ -1,5 +1,5 @@
 ---
-title: ""X"
+title: "Nearly two-thirds of university faculty serve in lower-paying, non-tenured roles"
 author: Sapna Bansil
 date: "Jan. 13, 2023"
 output:
@@ -18,26 +18,24 @@ knitr::opts_chunk$set(echo = TRUE)
 
 ## Story pitch
 
-When the Baltimore Orioles hired Liz Pardo and Kathryn Rowe to their coaching staff, they typified a trend: In an era of increasing gender diversity among coaches in MLB, two-thirds of clubs now employ women in coaching positions at the major or minor league levels. But with the majority of female coaches working in positions such as "mental skills" or "strength and conditioning," it raises a question: How much progress has MLB actually made towards hiring its first female manager?
+As students pay increasingly more for higher education, their instructors are disproportionately likely to work in lower-paying jobs that may be part-time, temporary and/or without benefits.
 
-I am interested in writing a reported data story on trends related to female coaches in MLB, with a spotlight on the Orioles. Using data from [The Institute for Diversity and Ethics in Sports (TIDES)](https://www.tidesport.org/racial-gender-report-card), I created and analyzed a database of female coaches from 2020 to 2022, during which time gender diversity within coaching positions dramatically increased. Among the key findings of my analysis:
+Nearly two-thirds of faculty members at the University of Maryland held non-tenured positions, an analysis of 2021 salary data revealed. Non-tenured faculty earned an average annual salary of approximately \$71,500, half as much as faculty in tenured or tenure-track positions.
 
-* 33 women representing 19 MLB clubs served as coaches in 2022. The Orioles were one of nine teams with at least two female coaches.
+I am interested in writing a reported data story that explores why the university has hired so many non-tenured faculty and contextualizes this finding relative to national trends.
 
-* Two-thirds of women who held coaching roles in 2022 worked as mental skills coaches or strength and conditioning coaches, including Pardo and Rowe of the Orioles. Eleven women -- twice as many as in 2020 -- had on-field coaching or player development roles that have traditionally served as a pathway towards an eventual role as an MLB manager.
-
-* The area's other local team, the Washington Nationals, is one of 10 clubs that has not hired a women to any coaching positions over the last three seasons. Since 2020, no women have served for the Orioles in on-field coaching or player development roles.
-
-This analysis is timely given that women, including Miami Marlins general manager Kim Ng, minor league manager Rachel Balkovec and San Francisco Giants coach Alyssa Nakken, are serving in increasingly prominent roles in MLB organizations. It is also unique among other news stories that have analyzed TIDES' data on racial and gender hiring practices in sports because of its breakdown by team and coach type.
-
-```{r echo=FALSE, message=FALSE}
+[Source used for this pitch](https://uhr.umd.edu/uhr-support-center/phr-support/general/employment-categories/)
 
 ## Libraries required for this analysis
+
+```{r}
+#| echo: true
+#| warning: false
+#| message: false
+#| code-fold: true
+
 library(tidyverse)
-library(janitor)
 library(kableExtra)
-library(ggplot2)
-library(ggthemes)
 
 output_formatted_table <- function(table, text, label_text = NULL){
   table %>%
@@ -47,7 +45,9 @@ output_formatted_table <- function(table, text, label_text = NULL){
 }
 ```
 
-## Source data
+## Loading and cleaning data
+
+I loaded a CSV file with the 2021 salary data and added a new column characterizing each position as tenured or non-tenured based on descriptions from the [University of Maryland Department of Human Resources](https://uhr.umd.edu/uhr-support-center/phr-support/general/employment-categories/).
 
 ```{r}
 #| echo: true
@@ -57,11 +57,17 @@ output_formatted_table <- function(table, text, label_text = NULL){
 
 salary_data <- read_csv("Data/salary_data.xlsx - Sheet 1.csv")
 
+salary_data <- salary_data %>%
+  mutate(position_type = case_when(
+    category_status == "Tenured Faculty" | category_status == "Tenure Track Faculty" ~ "tenured",
+    TRUE ~ "non-tenured"
+  ))
+
 ```
 
-## Analysis supporting data in memo
+## Analysis related to story pitch
 
-**Finding 1:** 33 women representing 19 MLB clubs served as coaches in 2022. The Orioles were one of nine teams with at least two female coaches.
+To complete this analysis, I first determined the average salary for tenured and non-tenured faculty. Then, I determined the total number of faculty hired to tenured and non-tenured positions. Finally, I joined the two tables to present the findings in one dataframe.
 
 ```{r}
 #| echo: true
@@ -69,147 +75,26 @@ salary_data <- read_csv("Data/salary_data.xlsx - Sheet 1.csv")
 #| message: false
 #| code-fold: true
 
-## URL for description of categories: https://uhr.umd.edu/uhr-support-center/phr-support/general/employment-categories/
-
-## Avg salary by position type
-salary_data %>%
-  group_by(category_status) %>%
+## Average salary by position type
+position_salary <- salary_data %>%
+  group_by(position_type) %>%
   summarise(avg_salary = mean(appt_base_annual_salary)) %>%
   arrange(desc(avg_salary))
 
-## Total within each position
-salary_data %>%
-  group_by(category_status) %>%
+## Total hires within each position
+position_total <- salary_data %>%
+  group_by(position_type) %>%
   summarise(total=n()) %>%
   mutate(pct = round(total/sum(total)*100,1)) %>%
   arrange(desc(total))
 
-## Salaries by school
-salary_data %>%
-  group_by(division) %>%
-  summarise(avg_salary = mean(appt_base_annual_salary)) %>%
-  arrange(desc(avg_salary))
+## Join
+position_summary <- position_total %>%
+  left_join(position_salary, by = "position_type")
 
-## Positions by school
-salary_data %>%
-  group_by(division, category_status) %>%
-  summarise(total = n())
+## Output for markdown file
+output_formatted_table(position_summary, "Non-tenured versus tenured faculty at Maryland, 2021")
 
-## Schools with most tenure positions
-salary_data %>%
-  filter(category_status=="Tenured Faculty" | category_status == "Tenure Track Faculty") %>%
-  group_by(division) %>%
-  summarise(total=n()) %>%
-  arrange(desc(total)) %>%
-  mutate(pct=round(total/sum(total)*100,1))
 
 ```
 
-**Finding 2:** Two-thirds of women who held coaching roles in 2022 worked as mental skills coaches or strength and conditioning coaches, including Pardo and Rowe of the Orioles. Eleven women -- twice as many as in 2020 -- had on-field coaching or player development roles that have traditionally served as a pathway towards an eventual role as an MLB manager.
-
-```{r}
-#| echo: true
-#| warning: false
-#| message: false
-#| code-fold: true
-
-## What roles did female coaches in MLB take on between 2020 and 2022?
-
-roles_2022 <- mlb_coaches %>%
-  filter(year == "2022") %>%
-  group_by(descriptor) %>%
-  summarise(roles_2022 = n())
-
-roles_2021 <- mlb_coaches %>%
-  filter(year == "2021") %>%
-  group_by(descriptor) %>%
-  summarise(roles_2021 = n())
-
-roles_2020 <- mlb_coaches %>%
-  filter(year == "2020") %>%
-  group_by(descriptor) %>%
-  summarise(roles_2020 = n())
-
-roles_2022_2021 <- roles_2022 %>%
-  left_join(roles_2021, by = "descriptor")
-
-roles_all <- roles_2022_2021 %>%
-  left_join(roles_2020, by = "descriptor") %>%
-   mutate(roles_2020 = as.numeric(roles_2020)) %>%
-  mutate(roles_2020 = case_when(
-    is.na(roles_2020) ~ 0,
-    TRUE ~ roles_2020
-  )) %>%
-  arrange(desc(roles_2022)) %>%
-  adorn_totals("row")
-
-## For what roles did the Orioles hire female coaches?
-orioles_coaches_2022 <- mlb_coaches %>%
-  filter(year == "2022") %>%
-  filter(team == "Baltimore Orioles") %>%
-  select(year, coach, team, descriptor) %>%
-  arrange(descriptor)
-
-output_formatted_table(roles_all, "Female Coaches in MLB by Role, 2020-2022")
-
-output_formatted_table(orioles_coaches_2022, "Female Coaches On Baltimore Orioles, 2022")
-
-```
-
-**Finding 3:** The area's other local team, the Washington Nationals, is one of 10 clubs that has not hired a women to any coaching positions over the last three seasons. Since 2020, no women have served for the Orioles in on-field coaching or player development roles.
-
-```{r}
-#| echo: true
-#| warning: false
-#| message: false
-#| code-fold: true
-
-## Which teams have not hired any female coaches?
-mlb_2020_to_2022 <- mlb_coaches %>%
-  group_by(team) %>%
-  summarise(female_coaches = n())
-
-all_mlb <- mlb_teams %>%
-  left_join(mlb_2020_to_2022, by = "team") %>%
-   mutate(female_coaches = as.numeric(female_coaches)) %>%
-  mutate(female_coaches = case_when(
-    is.na(female_coaches) ~ 0,
-    TRUE ~ female_coaches
-  )) %>%
-  mutate(had_female_coaches = case_when(
-    female_coaches == 0 ~ "no",
-    female_coaches >= 1 ~ "yes"
-  ))
-
-teams_without_coach <- all_mlb %>%
-  filter(female_coaches == "0") %>%
-  select(team, female_coaches)
-
-## Which teams have not hired female coaches to on-field or player development roles
-mlb_on_field <- mlb_coaches %>%
-  filter(descriptor == "On-Field Coaching" | descriptor == "Player Development") %>%
-  group_by(team) %>%
-  summarise(on_field_coaches = n()) %>%
-  arrange(team)
-
-all_mlb_on_field <- mlb_teams %>%
-  left_join(mlb_on_field, by = "team") %>%
-   mutate(on_field_coaches = as.numeric(on_field_coaches)) %>%
-  mutate(on_field_coaches = case_when(
-    is.na(on_field_coaches) ~ 0,
-    TRUE ~ on_field_coaches
-  )) %>%
-  mutate(had_on_field_coaches = case_when(
-    on_field_coaches == 0 ~ "no",
-    on_field_coaches >= 1 ~ "yes"
-  ))
-
-teams_without_on_field_coach <- all_mlb_on_field %>%
-  filter(on_field_coaches == "0") %>%
-  select(team, on_field_coaches)
-
-output_formatted_table(teams_without_coach, "MLB Teams Without Female Coaches, 2020-2022")
-
-output_formatted_table(teams_without_on_field_coach, "MLB Teams Without Female Coaches in On-Field or Player Development Roles, 2020-2022")
-
-```
